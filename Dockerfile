@@ -1,16 +1,25 @@
-FROM docker.io/ahmadnassri/vscode-server:latest
+FROM ubuntu:22.04
 
-# Switch to root for system modifications
-USER root
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    sudo \
+    supervisor \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install VS Code Server
+RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 # Install Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
-# Install supervisor for process management
-RUN apt-get update && apt-get install -y supervisor && rm -rf /var/lib/apt/lists/*
-
-# Create Tailscale directories
-RUN mkdir -p /var/lib/tailscale /var/run/tailscale
+# Create directories
+RUN mkdir -p /var/lib/tailscale /var/run/tailscale /workspace
 
 # Create supervisor configuration
 RUN echo '[supervisord]\n\
@@ -18,7 +27,7 @@ nodaemon=true\n\
 user=root\n\
 \n\
 [program:code-server]\n\
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none /workspace\n\
+command=code-server --bind-addr 0.0.0.0:8080 --auth none /workspace\n\
 directory=/workspace\n\
 autorestart=true\n\
 priority=100\n\
@@ -45,7 +54,7 @@ stderr_logfile=/var/log/tailscale-connect.log' > /etc/supervisor/conf.d/services
 # Create Tailscale connection script
 RUN echo '#!/bin/bash\n\
 echo "Waiting for tailscaled to start..."\n\
-sleep 10\n\
+sleep 15\n\
 \n\
 while true; do\n\
     if tailscale status > /dev/null 2>&1; then\n\
@@ -81,9 +90,11 @@ while true; do\n\
     fi\n\
 done' > /tailscale-connect.sh && chmod +x /tailscale-connect.sh
 
-# Ensure proper permissions
+# Set proper permissions
 RUN chown -R root:root /var/lib/tailscale /var/run/tailscale
 
+# Expose VS Code Server port
 EXPOSE 8080
 
+# Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
