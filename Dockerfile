@@ -21,6 +21,9 @@ RUN curl -fsSL https://tailscale.com/install.sh | sh
 # Create directories
 RUN mkdir -p /var/lib/tailscale /var/run/tailscale /workspace
 
+# Set fixed hostname to prevent multiple Tailscale entries on restart
+RUN echo 'render-vscode-server' > /etc/hostname
+
 # Create supervisor configuration
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
